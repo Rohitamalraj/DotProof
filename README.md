@@ -118,6 +118,16 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 
 The script refuses to run if the key does not belong to the expected deployer address.
 
+Show the live deployment (read-only, no key needed), or mint a small amount on camera:
+
+```bash
+npx hardhat run scripts/demo-slice.js --network portaldot
+DEPOSIT=0.1 npx hardhat run scripts/demo-slice.js --network portaldot   # needs DEPLOYER_KEY in .env
+```
+
+To verify any of the transactions above without an explorer, query the RPC directly:
+`eth_getTransactionReceipt` with the hash against `https://test-evm-rpc-v3.portaldot.dev` (status `0x1` means success).
+
 ### Frontend
 
 ```bash
