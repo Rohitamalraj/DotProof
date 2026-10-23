@@ -28,14 +28,22 @@ async function deploySystem(owner, attacker, weak) {
   const token = await ethers.getContractAt("BPOT", await gateway.token());
   const reserveAddr = await gateway.reserve();
   const monitor = await (await ethers.getContractFactory("BackingMonitor")).deploy(await token.getAddress(), reserveAddr);
-  const breaker = await (await ethers.getContractFactory("CircuitBreaker")).deploy(await monitor.getAddress(), 9950, 3600, owner.address);
   const backstop = await (await ethers.getContractFactory("Backstop")).deploy(owner.address);
+  const registry = await (await ethers.getContractFactory("AgentRegistry")).deploy(
+    owner.address, await backstop.getAddress(), E(10), E(5), E(2), 2000, E(1), 7 * 24 * 3600
+  );
+  const breaker = await (await ethers.getContractFactory("CircuitBreaker")).deploy(
+    await monitor.getAddress(), 9950, 3600, await registry.getAddress()
+  );
+  await registry.setAuthority(await breaker.getAddress(), true);
   const market = await (await ethers.getContractFactory("LendingMarket")).deploy(
     await token.getAddress(), await monitor.getAddress(), await breaker.getAddress(), await backstop.getAddress(), PARAMS
   );
   await backstop.registerMarket(await market.getAddress());
-  return { gateway, token, monitor, breaker, backstop, market };
+  return { gateway, token, monitor, breaker, backstop, registry, market };
 }
+
+const SENTINEL = 1, KEEPER = 2;
 
 async function fixture() {
   const [owner, lender, alice, bob, attacker, sentinel, keeper] = await ethers.getSigners();
@@ -43,8 +51,8 @@ async function fixture() {
   const weak = await deploySystem(owner, attacker, true);
   await good.market.connect(lender).supply({ value: E(1000) });
   await weak.market.connect(lender).supply({ value: E(1000) });
-  await good.breaker.setSentinel(sentinel.address, true);
-  await weak.breaker.setSentinel(sentinel.address, true);
+  await good.registry.connect(sentinel).register(SENTINEL, { value: E(10) });
+  await weak.registry.connect(sentinel).register(SENTINEL, { value: E(10) });
   return { owner, lender, alice, bob, attacker, sentinel, keeper, good, weak };
 }
 
@@ -258,5 +266,213 @@ describe("Exploit reproduction: the KelpDAO pattern", () => {
     await f.weak.gateway.connect(f.bob).deposit({ value: E(50_000) });
     await f.weak.breaker.release();
     expect(await f.weak.breaker.confirmed()).to.equal(false);
+  });
+});
+
+
+describe("AgentRegistry and bonded alarms", () => {
+  async function forge(f) {
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(100)); // ratio 50%
+  }
+
+  it("registers with a bond and rejects bad registrations", async () => {
+    const f = await loadFixture(fixture);
+    const r = f.good.registry;
+    expect(await r.isActive(f.sentinel.address, SENTINEL)).to.equal(true);
+    await expect(r.connect(f.alice).register(SENTINEL, { value: E(9) })).to.be.revertedWithCustomError(r, "BondTooLow");
+    await expect(r.connect(f.alice).register(0, { value: E(10) })).to.be.revertedWithCustomError(r, "BadRole");
+    await expect(r.connect(f.sentinel).register(SENTINEL, { value: E(10) })).to.be.revertedWithCustomError(r, "AlreadyRegistered");
+    await r.connect(f.keeper).register(KEEPER, { value: E(5) });
+    expect(await r.isActive(f.keeper.address, KEEPER)).to.equal(true);
+    expect(await r.isActive(f.keeper.address, SENTINEL)).to.equal(false);
+  });
+
+  it("only an active Sentinel can trip: strangers and Keepers cannot", async () => {
+    const f = await loadFixture(fixture);
+    await f.good.registry.connect(f.keeper).register(KEEPER, { value: E(5) });
+    await expect(f.good.breaker.connect(f.alice).trip("x")).to.be.revertedWithCustomError(f.good.breaker, "NotSentinel");
+    await expect(f.good.breaker.connect(f.keeper).trip("x")).to.be.revertedWithCustomError(f.good.breaker, "NotSentinel");
+  });
+
+  it("a true alarm is rewarded: confirm() judges the pending trip and pays the Sentinel", async () => {
+    const f = await loadFixture(fixture);
+    await forge(f);
+    await f.weak.registry.fundRewards({ value: E(5) });
+    await f.weak.breaker.connect(f.sentinel).trip("reserve < supply");
+    await expect(f.weak.breaker.connect(f.keeper).confirm())
+      .to.emit(f.weak.breaker, "AlarmJudged").withArgs(f.sentinel.address, true);
+    const a = await f.weak.registry.agents(f.sentinel.address);
+    expect(a.confirmedAlarms).to.equal(1);
+    expect(a.earned).to.equal(E(1));
+    expect(await f.weak.registry.claimable(f.sentinel.address)).to.equal(E(1));
+    await expect(() => f.weak.registry.connect(f.sentinel).claimRewards()).to.changeEtherBalance(f.sentinel, E(1));
+    expect(await f.weak.registry.claimable(f.sentinel.address)).to.equal(0);
+  });
+
+  it("a false alarm is slashed: it expires while the market is fully backed", async () => {
+    const f = await loadFixture(fixture);
+    await f.good.gateway.connect(f.alice).deposit({ value: E(10) });
+    await f.good.breaker.connect(f.sentinel).trip("cry wolf");
+    await expect(f.good.breaker.settleExpired()).to.be.revertedWithCustomError(f.good.breaker, "NotExpired");
+    await time.increase(3601);
+    const backstopBefore = await ethers.provider.getBalance(await f.good.backstop.getAddress());
+    await expect(f.good.breaker.connect(f.keeper).settleExpired())
+      .to.emit(f.good.breaker, "AlarmJudged").withArgs(f.sentinel.address, false);
+    const a = await f.good.registry.agents(f.sentinel.address);
+    expect(a.falseAlarms).to.equal(1);
+    expect(a.bond).to.equal(E(8)); // 20% of 10
+    expect(a.slashed).to.equal(E(2));
+    // the slashed bond lands in the Backstop
+    expect((await ethers.provider.getBalance(await f.good.backstop.getAddress())) - backstopBefore).to.equal(E(2));
+    // bond fell below the minimum: inactive until topped up
+    expect(await f.good.registry.isActive(f.sentinel.address, SENTINEL)).to.equal(false);
+    await expect(f.good.breaker.connect(f.sentinel).trip("again")).to.be.revertedWithCustomError(f.good.breaker, "NotSentinel");
+    await f.good.registry.connect(f.sentinel).topUp({ value: E(2) });
+    expect(await f.good.registry.isActive(f.sentinel.address, SENTINEL)).to.equal(true);
+  });
+
+  it("an expired trip that was right is judged true, rewarded, and becomes a hard pause", async () => {
+    const f = await loadFixture(fixture);
+    await forge(f);
+    await f.weak.registry.fundRewards({ value: E(5) });
+    await f.weak.breaker.connect(f.sentinel).trip("reserve < supply");
+    await time.increase(3601);
+    await f.weak.breaker.connect(f.keeper).settleExpired();
+    expect(await f.weak.breaker.confirmed()).to.equal(true);
+    expect((await f.weak.registry.agents(f.sentinel.address)).confirmedAlarms).to.equal(1);
+  });
+
+  it("allows one unjudged trip at a time and has nothing to settle otherwise", async () => {
+    const f = await loadFixture(fixture);
+    await expect(f.good.breaker.settleExpired()).to.be.revertedWithCustomError(f.good.breaker, "NothingToSettle");
+    await f.good.breaker.connect(f.sentinel).trip("first");
+    await expect(f.good.breaker.connect(f.sentinel).trip("second")).to.be.revertedWithCustomError(f.good.breaker, "TripPending");
+  });
+
+  it("rewards are capped by the pool: with an empty pool the alarm still counts but pays nothing", async () => {
+    const f = await loadFixture(fixture);
+    await forge(f);
+    await f.weak.breaker.connect(f.sentinel).trip("reserve < supply");
+    await f.weak.breaker.confirm();
+    const a = await f.weak.registry.agents(f.sentinel.address);
+    expect(a.confirmedAlarms).to.equal(1);
+    expect(a.earned).to.equal(0);
+  });
+
+  it("only authorities can reward or slash: strangers and the owner cannot", async () => {
+    const f = await loadFixture(fixture);
+    const r = f.good.registry;
+    await expect(r.connect(f.alice).recordConfirmed(f.sentinel.address)).to.be.revertedWithCustomError(r, "NotAuthority");
+    await expect(r.connect(f.alice).recordFalseAlarm(f.sentinel.address)).to.be.revertedWithCustomError(r, "NotAuthority");
+    await expect(r.connect(f.owner).recordFalseAlarm(f.sentinel.address)).to.be.revertedWithCustomError(r, "NotAuthority");
+  });
+
+  it("unbonding: inactive at once, locked for the delay, and still slashable while locked", async () => {
+    const f = await loadFixture(fixture);
+    const r = f.good.registry;
+    await f.good.gateway.connect(f.alice).deposit({ value: E(10) });
+    await f.good.breaker.connect(f.sentinel).trip("exit before the verdict");
+    await r.connect(f.sentinel).requestUnbond();
+    expect(await r.isActive(f.sentinel.address, SENTINEL)).to.equal(false);
+    await expect(r.connect(f.sentinel).withdraw()).to.be.revertedWithCustomError(r, "StillLocked");
+    await time.increase(3601);
+    await f.good.breaker.settleExpired(); // false alarm lands during the unbonding window
+    await time.increase(7 * 24 * 3600);
+    await expect(() => r.connect(f.sentinel).withdraw()).to.changeEtherBalance(f.sentinel, E(8)); // 10 minus the 20% slash
+    expect((await r.agents(f.sentinel.address)).role).to.equal(0);
+  });
+});
+
+
+describe("Agent bots (rule-based Sentinel and Keeper)", () => {
+  const sentinelBot = require("../../agents/src/sentinel");
+  const keeperBot = require("../../agents/src/keeper");
+
+  const sentinelCtx = (sys, signer) => ({
+    monitor: sys.monitor,
+    breaker: sys.breaker.connect(signer),
+    registry: sys.registry,
+    address: signer.address,
+    thresholdBps: 9950,
+    now: async () => await time.latest(),
+  });
+
+  async function forge(f) {
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(100)); // ratio 50%
+  }
+
+  it("Sentinel does nothing while the market is fully backed", async () => {
+    const f = await loadFixture(fixture);
+    await f.good.gateway.connect(f.alice).deposit({ value: E(10) });
+    expect(await sentinelBot.tick(sentinelCtx(f.good, f.sentinel))).to.equal("ok");
+    expect(await f.good.breaker.isPaused()).to.equal(false);
+  });
+
+  it("Sentinel reacts to a forged mint by itself: trips, confirms, gets paid, then releases when backing returns", async () => {
+    const f = await loadFixture(fixture);
+    await forge(f);
+    await f.weak.registry.fundRewards({ value: E(5) });
+    const ctx = sentinelCtx(f.weak, f.sentinel);
+
+    expect(await sentinelBot.tick(ctx)).to.equal("tripped+confirmed");
+    expect(await f.weak.breaker.confirmed()).to.equal(true);
+    expect(await f.weak.registry.claimable(f.sentinel.address)).to.equal(E(1));
+    // the other market is untouched
+    expect(await f.good.breaker.isPaused()).to.equal(false);
+    // a second tick is a no-op, not a second alarm
+    expect(await sentinelBot.tick(ctx)).to.equal("already-paused");
+
+    // genuine deposits dilute the forged supply until the ratio recovers
+    await setBalance(f.bob.address, E(100_000));
+    await f.weak.gateway.connect(f.bob).deposit({ value: E(50_000) });
+    expect(await sentinelBot.tick(ctx)).to.equal("released");
+    expect(await f.weak.breaker.confirmed()).to.equal(false);
+  });
+
+  it("Sentinel settles its own expired false alarm when it is the one who cried wolf", async () => {
+    const f = await loadFixture(fixture);
+    await f.good.gateway.connect(f.alice).deposit({ value: E(10) });
+    await f.good.breaker.connect(f.sentinel).trip("manual false alarm");
+    await time.increase(3601);
+    expect(await sentinelBot.tick(sentinelCtx(f.good, f.sentinel))).to.equal("settled");
+    expect((await f.good.registry.agents(f.sentinel.address)).falseAlarms).to.equal(1);
+  });
+
+  it("an unregistered bot can still help: it can only confirm, never trip", async () => {
+    const f = await loadFixture(fixture);
+    await forge(f);
+    expect(await sentinelBot.tick(sentinelCtx(f.weak, f.bob))).to.equal("confirmed");
+    expect(await f.weak.breaker.confirmed()).to.equal(true);
+    await expect(f.weak.breaker.connect(f.bob).trip("x")).to.be.revertedWithCustomError(f.weak.breaker, "NotSentinel");
+  });
+
+  it("Keeper finds borrowers from events and liquidates only unhealthy positions", async () => {
+    const f = await loadFixture(fixture);
+    await openPosition(f.good, f.alice, 100);
+    await mine(SEASON);
+    await f.good.market.connect(f.alice).borrow(E(70));
+    await openPosition(f.good, f.bob, 100);
+    await mine(SEASON);
+    await f.good.market.connect(f.bob).borrow(E(10)); // stays healthy
+
+    const ctx = {
+      market: f.good.market.connect(f.keeper),
+      signerAddress: f.keeper.address,
+      getBalance: (a) => ethers.provider.getBalance(a),
+      getBlockNumber: () => ethers.provider.getBlockNumber(),
+      state: { users: new Set(), fromBlock: 0 },
+      maxRange: 7, // forces the chunked scan to loop
+    };
+
+    expect(await keeperBot.tick(ctx)).to.deep.equal([]); // everyone healthy
+    expect(ctx.state.users.size).to.equal(2);
+
+    await time.increase(8 * 365 * 24 * 3600); // interest pushes alice past her threshold, bob stays fine
+    const before = await f.good.token.balanceOf(f.keeper.address);
+    expect(await keeperBot.tick(ctx)).to.deep.equal([f.alice.address]);
+    expect(await f.good.token.balanceOf(f.keeper.address)).to.be.gt(before); // collected the bonus in bPOT
+    expect(await keeperBot.tick(ctx)).to.deep.equal([]); // nothing left to do
   });
 });
