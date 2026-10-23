@@ -1,4 +1,4 @@
-# DotProof — Backing-Aware Lending on Portaldot
+# DotProof — The First Backing-Aware Lending on Portaldot
 
 > **The first lending protocol on Portaldot where every borrow is checked, on-chain and inside the same transaction, against proof that the collateral is actually backed — and where a bonded agent network can only ever make the system safer.**
 
@@ -439,7 +439,8 @@ DotProof/
 │   ├── scripts/
 │   │   ├── deploy-slice.js              # Check-in slice deploy (dry-run mode included)
 │   │   ├── deploy-phase2.js             # Rest of the protocol + wiring (dry-run mode included)
-│   │   └── demo-slice.js                # Live backing-state demo
+│   │   ├── demo-slice.js                # Live backing-state demo against the testnet
+│   │   └── demo-e2e.js                  # Full attack-and-response story on a local chain
 │   └── deployments/portaldot.json       # Live addresses and tx hashes
 │
 ├── agents/                     # Rule-based Sentinel and Keeper bots
@@ -528,6 +529,7 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 ## End-to-End Test Flow
 
 1. **Run the suite:** `cd contracts && npx hardhat test` and watch the 38 tests pass.
+1. **Watch the whole story in one run (no tokens needed):** `npx hardhat run scripts/demo-e2e.js`. Two isolated markets: an honest user borrows after seasoning, an attacker forges 1,000 unbacked bPOT on the fixture market and the borrow reverts with `BackingBelowThreshold(909)`, the Sentinel bot pauses only that market and is paid, the healthy market keeps working, backing is restored and the pause lifts, and finally a false alarm costs the Sentinel part of its bond. With `GROQ_API_KEY` set, the LLM advisor writes the pause reason live.
 2. **See the live deployment:** `npx hardhat run scripts/demo-slice.js --network portaldot` prints the addresses, the reserve held, the bPOT supply and the backing ratio read from the testnet, with no key needed.
 3. **Mint on camera:** `DEPOSIT=0.1 npx hardhat run scripts/demo-slice.js --network portaldot` (needs `DEPLOYER_KEY`). Supply and reserve rise together and the ratio stays at 100%.
 4. **Replay the attack locally:** the test `synchronous backing check reverts the attacker's borrow` forges 1,000 unbacked tokens against 100 real reserve and asserts the borrow reverts with `BackingBelowThreshold(909)`.
