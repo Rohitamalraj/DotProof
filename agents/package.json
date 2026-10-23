@@ -1,0 +1,14 @@
+{
+  "name": "dotproof-agents",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Sentinel and Keeper agents for DotProof (rule-based, bonded, contract-limited)",
+  "scripts": {
+    "sentinel": "node run.js sentinel",
+    "keeper": "node run.js keeper"
+  },
+  "dependencies": {
+    "ethers": "^6.13.0"
+  }
+}
