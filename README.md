@@ -333,7 +333,21 @@ There is no admin key on `CircuitBreaker`: it has no owner. Rewards are pull-bas
 - **Keeper** (`agents/src/keeper.js`) finds borrowers from `Borrowed` events in chunks that respect RPC range limits, checks each health factor on-chain, and liquidates only positions below 1.0.
 - Run with `node run.js sentinel` or `node run.js keeper --once`. Keys come from the git-ignored `.env` (`SENTINEL_KEY`, `KEEPER_KEY`), use throwaway testnet wallets.
 
-**Decision logic:** rule-based by default. An LLM may assist a Sentinel on borderline cases and log its reasoning, with rules as the fallback, and it never has authority over safety-critical paths.
+**Decision logic:** rule-based. An optional **LLM advisor** (Groq API, default model `openai/gpt-oss-120b`, set `GROQ_MODEL` to change it) assists the Sentinel on borderline cases and logs its reasoning. It is **advisory only** and the rules stay in charge.
+
+**What the advisor can and cannot do** (enforced in `agents/src/sentinel.js`, covered by tests)
+
+| The advisor can | The advisor cannot |
+|---|---|
+| Raise an **early warning** while backing is still above the threshold but falling. Only a confident `alarm` (confidence ≥ 0.8) causes a soft, expiring trip | Trip below that confidence, or on a `watch` or `ignore` verdict |
+| Write the **plain-language reason** attached to a trip that the rules already decided | Stop a trip the rules decided on, even if it says `ignore` |
+| Add caution | **Release or lift a pause.** Releasing depends only on the on-chain backing ratio |
+| | Call any contract directly. Only the bot's own rule-checked code sends transactions |
+
+- **It has skin in the game.** An advisor-driven early warning is a soft pause. If backing holds and it expires, the Sentinel is slashed like any false alarm, so an over-eager model costs real bond.
+- **It degrades safely.** With no `GROQ_API_KEY`, an API error, a malformed reply or a timeout (12 s), the advisor returns nothing and the Sentinel runs on rules alone. Run with `--no-ai` to force that.
+- **Live check:** `node agents/scripts/groq-smoke.js` sends three scenarios to Groq and prints the verdicts (healthy → `ignore`, slipping above threshold → `watch`, below threshold → `alarm` with a written reason).
+- **Honest note:** a plain script can read real chain data and apply thresholds just as well. The model adds explanation and a cautious second opinion, not safety. The safety comes from the contracts.
 
 **Honest note:** a plain script can read real chain data and apply thresholds just as well. The value of the "agent" framing is accountability and autonomy (own identity, wallet, bond, limits, earnings), not that an LLM is required.
 
@@ -398,7 +412,7 @@ To verify any hash without an explorer, call `eth_getTransactionReceipt` against
 | Item | State |
 |---|---|
 | Gateway, bPOT, BackingMonitor on testnet with real tx hashes | ✅ Done |
-| LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 32 passing tests · ⏳ not yet deployed |
+| LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 38 passing tests · ⏳ not yet deployed |
 | Frontend: live backing ratio, reserve, supply and block on the landing page and `/app`; wallet connect, **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
 | Frontend: markets list, market detail (except the bPOT gauge), agents page, borrow and repay | ⚠️ Placeholder data, because `LendingMarket` and the agents are not deployed yet |
 | MarketFactory | ⏳ Not started |
@@ -421,7 +435,7 @@ DotProof/
 │   │   ├── AgentRegistry.sol            # Bonds, rewards, slashing
 │   │   ├── Backstop.sol                 # First-loss reserve
 │   │   └── fixtures/WeakGateway.sol     # EXPLOIT REPRODUCTION FIXTURE
-│   ├── test/DotProof.test.js            # 32 tests: contracts, agent registry, bots, the KelpDAO-style attack
+│   ├── test/DotProof.test.js            # 38 tests: contracts, agent registry, bots, AI advisor, the KelpDAO-style attack
 │   ├── scripts/
 │   │   ├── deploy-slice.js              # Check-in slice deploy (dry-run mode included)
 │   │   ├── deploy-phase2.js             # Rest of the protocol + wiring (dry-run mode included)
@@ -449,7 +463,7 @@ DotProof/
 | Libraries | OpenZeppelin Contracts 5.x (`Ownable`, `ReentrancyGuard`, `SafeERC20`, `IERC20`) |
 | Chain | Portaldot V3 testnet (`pallet-revive` EVM, chain ID 420420777) |
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4, viem 2 (injected wallet, MetaMask) |
-| Agents | Sentinel and Keeper bots (Node.js, ethers 6), rule-based |
+| Agents | Sentinel and Keeper bots (Node.js, ethers 6), rule-based, with an optional Groq LLM advisor (advisory only) |
 
 ---
 
@@ -471,7 +485,7 @@ cd ../web && npm install
 
 ```bash
 cd contracts
-npx hardhat test          # 32 tests on a local Hardhat chain, no key needed
+npx hardhat test          # 38 tests on a local Hardhat chain, no key needed
 ```
 
 ### Run the Frontend
@@ -490,6 +504,9 @@ npm run dev               # http://localhost:3000
 ```env
 DEPLOYER_KEY=<testnet-only private key, no real funds>
 # PORTALDOT_RPC=https://test-evm-rpc-v3.portaldot.dev   (optional override)
+# SENTINEL_KEY=...   KEEPER_KEY=...    (throwaway testnet wallets for the bots)
+# GROQ_API_KEY=gsk_...                 (optional, enables the Sentinel's LLM advisor)
+# GROQ_MODEL=openai/gpt-oss-120b       (optional)
 ```
 
 Use a throwaway wallet that holds only testnet tokens. The deploy script refuses to run if the key does not belong to the expected deployer address.
@@ -510,7 +527,7 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 
 ## End-to-End Test Flow
 
-1. **Run the suite:** `cd contracts && npx hardhat test` and watch the 32 tests pass.
+1. **Run the suite:** `cd contracts && npx hardhat test` and watch the 38 tests pass.
 2. **See the live deployment:** `npx hardhat run scripts/demo-slice.js --network portaldot` prints the addresses, the reserve held, the bPOT supply and the backing ratio read from the testnet, with no key needed.
 3. **Mint on camera:** `DEPOSIT=0.1 npx hardhat run scripts/demo-slice.js --network portaldot` (needs `DEPLOYER_KEY`). Supply and reserve rise together and the ratio stays at 100%.
 4. **Replay the attack locally:** the test `synchronous backing check reverts the attacker's borrow` forges 1,000 unbacked tokens against 100 real reserve and asserts the borrow reverts with `BackingBelowThreshold(909)`.
