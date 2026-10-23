@@ -126,3 +126,31 @@ body {
   .load-rise, .load-phone, .hero-load::before { animation: none !important; opacity: 1; filter: none; transform: none; }
   .reveal { filter: none; }
 }
+
+/* ---------- Pitch deck ---------- */
+@keyframes s-rise { from { opacity: 0; transform: translateY(20px); filter: blur(7px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes s-pop  { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes s-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes s-drift { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(2%,-3%,0) scale(1.08); } }
+
+.s-rise { animation: s-rise .75s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0ms); }
+.s-pop  { animation: s-pop .6s var(--ease-snappy) both; animation-delay: var(--d, 0ms); }
+.s-grow { transform-origin: left; animation: s-grow 1s cubic-bezier(.2,.7,.2,1) both; animation-delay: var(--d, 0ms); }
+
+.deck-stage { min-height: 100svh; display: grid; grid-template-rows: 1fr auto; }
+.deck-aura::before {
+  content: ""; position: absolute; inset: -20%; z-index: 0; pointer-events: none;
+  background: radial-gradient(42% 42% at 18% 22%, rgba(151,136,255,.30), transparent 70%),
+              radial-gradient(38% 38% at 84% 72%, rgba(40,211,88,.14), transparent 70%);
+  animation: s-drift 18s ease-in-out infinite;
+}
+.deck-grid::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: .5;
+  background-image: linear-gradient(rgba(151,136,255,.07) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(151,136,255,.07) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(70% 60% at 50% 45%, #000, transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-rise, .s-pop, .s-grow, .deck-aura::before { animation: none !important; opacity: 1; transform: none; filter: none; }
+}

@@ -6,7 +6,7 @@ import { Logo } from "./Logo";
 const links = [
   { href: "/markets", label: "Markets" },
   { href: "/agents", label: "Agents" },
-  { href: "/#security", label: "Security" },
+  { href: "/pitch", label: "Pitch" },
   { href: "/#build", label: "Developers" },
 ];
 
