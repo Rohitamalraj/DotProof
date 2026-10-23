@@ -1,0 +1,17 @@
+# Secrets: never commit
+.env
+.env.*
+*.key
+
+# Dependencies and build output
+node_modules/
+.next/
+contracts/cache/
+contracts/artifacts/
+contracts/typechain-types/
+
+# Local scratch
+Screen Recording*.mp4
+
+# Kept local, not published
+DotProof-PRD.md
