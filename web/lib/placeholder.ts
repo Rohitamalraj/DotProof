@@ -91,10 +91,11 @@ export const markets: Market[] = [
   },
 ];
 
+// Facts about this repo, not simulated protocol data.
 export const protocolStats = [
-  { label: "Markets isolated", value: "3" },
-  { label: "Backing checks per borrow", value: "1:1" },
-  { label: "Agents bonded", value: "5" },
+  { label: "Contracts live on testnet", value: "3" },
+  { label: "Tests passing", value: "18" },
+  { label: "Backing check per borrow", value: "1 tx" },
 ];
 
 export type AgentRole = "Sentinel" | "Keeper" | "Guardian";

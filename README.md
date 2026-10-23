@@ -373,7 +373,8 @@ To verify any hash without an explorer, call `eth_getTransactionReceipt` against
 |---|---|
 | Gateway, bPOT, BackingMonitor on testnet with real tx hashes | ✅ Done |
 | LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 18 passing tests · ⏳ not yet deployed |
-| Frontend (landing, markets, agents, app shell) | ✅ Built · ⚠️ **all data is placeholder** until wired to the contracts |
+| Frontend: live backing ratio, reserve, supply and block on the landing page and `/app`; wallet connect, **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
+| Frontend: markets list, market detail (except the bPOT gauge), agents page, borrow and repay | ⚠️ Placeholder data, because `LendingMarket` and the agents are not deployed yet |
 | MarketFactory | ⏳ Not started |
 | AgentRegistry (bonds, rewards, slashing) | ⏳ Not started |
 | Sentinel and Keeper agents running against real RPC data | ⏳ Not started |
@@ -415,8 +416,8 @@ DotProof/
 | Smart contracts | Solidity 0.8.24 (`paris` EVM target), Hardhat |
 | Libraries | OpenZeppelin Contracts 5.x (`Ownable`, `ReentrancyGuard`, `SafeERC20`, `IERC20`) |
 | Chain | Portaldot V3 testnet (`pallet-revive` EVM, chain ID 420420777) |
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4 |
-| Planned | ethers/viem wallet integration, Sentinel and Keeper bots (Node.js) |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4, viem 2 (injected wallet, MetaMask) |
+| Planned | Sentinel and Keeper bots (Node.js) |
 
 ---
 
@@ -483,7 +484,9 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 4. **Replay the attack locally:** the test `synchronous backing check reverts the attacker's borrow` forges 1,000 unbacked tokens against 100 real reserve and asserts the borrow reverts with `BackingBelowThreshold(909)`.
 5. **See the breaker:** the tests `the breaker confirms permissionlessly, pauses only the affected market, and tightens liquidation` and `only sentinels can trip, a soft trip expires, and release needs restored backing` cover the full pause lifecycle.
 
-> A browser flow (connect wallet, deposit, borrow) is not wired yet. The frontend currently shows placeholder data.
+6. **Use the browser app:** `cd web && npm run dev`, open `/app`, connect MetaMask (the app adds the Portaldot testnet for you), then **Mint** tPOT into bPOT and **Redeem** it back. The landing page's "Live on Portaldot testnet" strip and the `/app` gauge read `BackingMonitor` directly from the chain.
+
+> Borrow and repay in the browser are not available yet, because `LendingMarket` is not deployed. Those tabs say so. The markets list, agents page and market details other than the bPOT gauge still show placeholder data.
 
 ---
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader, StatusBadge, BackingGauge } from "@/components/ui";
+import { LiveGauge } from "@/components/Live";
 import { activity, markets } from "@/lib/placeholder";
 
 export function generateStaticParams() {
@@ -32,7 +33,7 @@ export default async function MarketPage({ params }: { params: Promise<{ id: str
 
       <section className="wrap-wide mt-10 grid gap-4 lg:grid-cols-3">
         <div className="card-light flex flex-col items-center p-8 text-center">
-          <BackingGauge value={m.backing} size={180} />
+          {m.id === "bpot-core" ? <LiveGauge size={180} /> : <BackingGauge value={m.backing} size={180} />}
           <div className="mt-5 text-[15px] font-medium">BackingMonitor</div>
           <p className="mt-1 text-[13px] text-fg-3">Reserve balance ÷ {m.collateral} supply, computed on-chain.</p>
           {paused && (
