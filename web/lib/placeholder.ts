@@ -94,7 +94,7 @@ export const markets: Market[] = [
 // Facts about this repo, not simulated protocol data.
 export const protocolStats = [
   { label: "Contracts live on testnet", value: "3" },
-  { label: "Tests passing", value: "18" },
+  { label: "Tests passing", value: "32" },
   { label: "Backing check per borrow", value: "1 tx" },
 ];
 

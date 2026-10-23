@@ -131,6 +131,10 @@ Liquidity, audits, battle-testing and price-oracle coverage. This is a hackathon
 │  ├─ confirm() anyone, when BackingMonitor proves under-backing    │
 │  └─ release() anyone, only once backing is restored               │
 │                                                                   │
+│  AgentRegistry.sol                            [tested locally]    │
+│  ├─ bonds per role, reward pool, pull-based rewards               │
+│  └─ slashing only by authorities (the breaker), funds → Backstop  │
+│                                                                   │
 │  Backstop.sol                                 [tested locally]    │
 │  └─ first-loss reserve, funded by a share of interest             │
 │                                                                   │
@@ -140,7 +144,7 @@ Liquidity, audits, battle-testing and price-oracle coverage. This is a hackathon
         ▲                                         ▲
         │ trip(): pause only                      │ liquidate()
    Sentinel agent                            Keeper agent
-   [planned]                                 [planned]
+   [written, tested]                         [written, tested]
 ```
 
 ```mermaid
@@ -158,6 +162,9 @@ flowchart LR
 
     S[Sentinel agent] -- trip: pause only --> CB
     K[Keeper agent] -- liquidate --> L
+    CB -- judges each alarm:<br/>reward true, slash false --> R[AgentRegistry<br/>bonds, rewards]
+    S -. posts bond .-> R
+    R -- slashed bond --> BS
 
     subgraph Deployed on testnet
       G
@@ -264,8 +271,8 @@ sequenceDiagram
     participant Market as LendingMarket.sol
     participant Monitor as BackingMonitor.sol
     participant Breaker as CircuitBreaker.sol
-    participant Sentinel as Sentinel agent (planned)
-    participant Keeper as Keeper agent (planned)
+    participant Sentinel as Sentinel bot (agents/src/sentinel.js)
+    participant Keeper as Keeper bot (agents/src/keeper.js)
 
     Attacker->>Weak: forgedMint(attacker, 1000)
     Note over Weak: reserve 100 tPOT, supply 1,100 bPOT (no reserve behind 1,000)
@@ -295,7 +302,7 @@ sequenceDiagram
 
 ---
 
-## Agent Network (Planned)
+## Agent Network
 
 Each agent has its own wallet (pays its own gas), a registered identity, role-limited permissions enforced by contracts, and a slashable bond.
 
@@ -305,7 +312,26 @@ Each agent has its own wallet (pays its own gas), a registered identity, role-li
 | **Keeper** | Liquidates unhealthy loans (permissionless, anyone can run one) | Liquidation bonus | It acts outside its limits | Liquidate | Anything else |
 | **Guardian** *(stretch)* | Protects a user's position within their allowance | Small fee | It overspends | Spend up to the user's allowance | Exceed it or touch other accounts |
 
-**Status:** the contract side that agents act on (`CircuitBreaker.trip`, `LendingMarket.liquidate`) exists and is tested, with sentinels held in an owner-managed list. `AgentRegistry` (bonds, rewards, slashing) and the agent bots themselves are **not built yet**.
+**Status:** `AgentRegistry`, the bonded-alarm logic in `CircuitBreaker`, and rule-based Sentinel and Keeper bots are written and covered by tests. They run against the local test chain today. They are **not yet deployed to the testnet**, because the code deposits need more tPOT than we hold (see below). `agents/run.js` refuses to start against the testnet until those contracts exist, and says so.
+
+**How bonds, rewards and slashing work (all deterministic, no human in the loop)**
+
+| Step | What the contracts do |
+|---|---|
+| Register | An agent posts a native-currency bond (`register(role)`, minimum per role) and is active while its bond stays at or above the minimum |
+| Trip | Only an **active Sentinel** can call `CircuitBreaker.trip()`. One unjudged trip at a time |
+| Judge: true alarm | `confirm()` (anyone) succeeds only if `BackingMonitor` proves backing is below the threshold. A pending trip is then judged true and the Sentinel earns a reward (claimable, pull-based) |
+| Judge: false alarm | If the trip expires and the market is still fully backed, anyone can call `settleExpired()`. The Sentinel is slashed 20% of its bond and the slashed funds go to the **Backstop** |
+| After a slash | If the bond falls below the minimum the agent is inactive until it tops up |
+| Leaving | `requestUnbond()` deactivates at once; the bond is withdrawable after a delay and stays slashable during it |
+| Who can reward or slash | Only registered **authorities** (the breaker). The owner can only manage that list and fund the reward pool, and has no power over any agent |
+
+There is no admin key on `CircuitBreaker`: it has no owner. Rewards are pull-based so a hostile agent contract can't block the breaker by reverting when paid.
+
+**The bots** (`agents/`)
+- **Sentinel** (`agents/src/sentinel.js`) reads `BackingMonitor`. Under-backed: trip, then confirm. Backed again: release a hard pause or settle its own expired trip. It cannot unpause, raise caps or move funds.
+- **Keeper** (`agents/src/keeper.js`) finds borrowers from `Borrowed` events in chunks that respect RPC range limits, checks each health factor on-chain, and liquidates only positions below 1.0.
+- Run with `node run.js sentinel` or `node run.js keeper --once`. Keys come from the git-ignored `.env` (`SENTINEL_KEY`, `KEEPER_KEY`), use throwaway testnet wallets.
 
 **Decision logic:** rule-based by default. An LLM may assist a Sentinel on borderline cases and log its reasoning, with rules as the fallback, and it never has authority over safety-critical paths.
 
@@ -363,7 +389,7 @@ To verify any hash without an explorer, call `eth_getTransactionReceipt` against
 
 ### Not Yet Deployed
 
-`LendingMarket`, `CircuitBreaker`, `Backstop` and the `WeakGateway` fixture are written and tested but not on the testnet. Their code deposits need roughly 700 tPOT more than the check-in wallet held, so they are waiting on additional testnet tokens.
+`LendingMarket`, `CircuitBreaker`, `Backstop`, `AgentRegistry` and the `WeakGateway` fixture are written and tested but not on the testnet. A dry-run of `scripts/deploy-phase2.js` against the live chain estimates about **1,435 tPOT** for Backstop (~105), AgentRegistry (~402), CircuitBreaker (~222) and LendingMarket (~706), before agent bonds and test liquidity. The check-in wallet holds about 104 tPOT, so phase 2 is waiting on additional testnet tokens.
 
 ---
 
@@ -372,12 +398,12 @@ To verify any hash without an explorer, call `eth_getTransactionReceipt` against
 | Item | State |
 |---|---|
 | Gateway, bPOT, BackingMonitor on testnet with real tx hashes | ✅ Done |
-| LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 18 passing tests · ⏳ not yet deployed |
+| LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 32 passing tests · ⏳ not yet deployed |
 | Frontend: live backing ratio, reserve, supply and block on the landing page and `/app`; wallet connect, **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
 | Frontend: markets list, market detail (except the bPOT gauge), agents page, borrow and repay | ⚠️ Placeholder data, because `LendingMarket` and the agents are not deployed yet |
 | MarketFactory | ⏳ Not started |
-| AgentRegistry (bonds, rewards, slashing) | ⏳ Not started |
-| Sentinel and Keeper agents running against real RPC data | ⏳ Not started |
+| AgentRegistry (bonds, rewards, slashing) and the bonded-alarm logic in CircuitBreaker | ✅ Written, 9 tests · ⏳ not yet deployed |
+| Sentinel and Keeper bots | ✅ Written, 5 tests against the contracts · ⏳ will run on the testnet once phase 2 is deployed |
 
 ---
 
@@ -391,15 +417,21 @@ DotProof/
 │   │   ├── BPOT.sol                     # Minimal ERC-20, Gateway-controlled
 │   │   ├── BackingMonitor.sol           # reserve / supply, on-chain
 │   │   ├── LendingMarket.sol            # Isolated market (core)
-│   │   ├── CircuitBreaker.sol           # Pause that can only tighten
+│   │   ├── CircuitBreaker.sol           # Pause that can only tighten, no owner
+│   │   ├── AgentRegistry.sol            # Bonds, rewards, slashing
 │   │   ├── Backstop.sol                 # First-loss reserve
 │   │   └── fixtures/WeakGateway.sol     # EXPLOIT REPRODUCTION FIXTURE
-│   ├── test/DotProof.test.js            # 18 tests incl. the KelpDAO-style attack
+│   ├── test/DotProof.test.js            # 32 tests: contracts, agent registry, bots, the KelpDAO-style attack
 │   ├── scripts/
 │   │   ├── deploy-slice.js              # Check-in slice deploy (dry-run mode included)
-│   │   ├── deploy.js                    # Full-system deploy (when funded)
+│   │   ├── deploy-phase2.js             # Rest of the protocol + wiring (dry-run mode included)
 │   │   └── demo-slice.js                # Live backing-state demo
 │   └── deployments/portaldot.json       # Live addresses and tx hashes
+│
+├── agents/                     # Rule-based Sentinel and Keeper bots
+│   ├── src/sentinel.js          # trip, confirm, settle, release
+│   ├── src/keeper.js            # find borrowers, liquidate unhealthy positions
+│   └── run.js                   # CLI runner for the testnet
 │
 └── web/                        # Next.js frontend
     ├── app/                     # /, /markets, /markets/[id], /agents, /app
@@ -417,7 +449,7 @@ DotProof/
 | Libraries | OpenZeppelin Contracts 5.x (`Ownable`, `ReentrancyGuard`, `SafeERC20`, `IERC20`) |
 | Chain | Portaldot V3 testnet (`pallet-revive` EVM, chain ID 420420777) |
 | Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 4, viem 2 (injected wallet, MetaMask) |
-| Planned | Sentinel and Keeper bots (Node.js) |
+| Agents | Sentinel and Keeper bots (Node.js, ethers 6), rule-based |
 
 ---
 
@@ -439,7 +471,7 @@ cd ../web && npm install
 
 ```bash
 cd contracts
-npx hardhat test          # 18 tests on a local Hardhat chain, no key needed
+npx hardhat test          # 32 tests on a local Hardhat chain, no key needed
 ```
 
 ### Run the Frontend
@@ -478,7 +510,7 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 
 ## End-to-End Test Flow
 
-1. **Run the suite:** `cd contracts && npx hardhat test` and watch the 18 tests pass.
+1. **Run the suite:** `cd contracts && npx hardhat test` and watch the 32 tests pass.
 2. **See the live deployment:** `npx hardhat run scripts/demo-slice.js --network portaldot` prints the addresses, the reserve held, the bPOT supply and the backing ratio read from the testnet, with no key needed.
 3. **Mint on camera:** `DEPOSIT=0.1 npx hardhat run scripts/demo-slice.js --network portaldot` (needs `DEPLOYER_KEY`). Supply and reserve rise together and the ratio stays at 100%.
 4. **Replay the attack locally:** the test `synchronous backing check reverts the attacker's borrow` forges 1,000 unbacked tokens against 100 real reserve and asserts the borrow reverts with `BackingBelowThreshold(909)`.
@@ -504,7 +536,7 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 ## Honest Trust Model and Risks
 
 - Where the backing lives on this chain (the Gateway's own balance), the check is **trustless and fully on-chain**.
-- For assets whose reserves live on another chain, the design relies on **Sentinel attestation**, which is a trust assumption, not a trustless proof. It is meant to be bonded and limited. That part is not built yet.
+- For assets whose reserves live on another chain, the design relies on **Sentinel attestation**, which is a trust assumption, not a trustless proof. It is bonded and limited by `AgentRegistry` (written and tested, not yet deployed), but reading another chain's reserves is not built: the Sentinel today only reads the on-chain `BackingMonitor`.
 - **Unaudited prototype.** No liquidity, no audits, no battle-testing, and price-oracle coverage is intentionally out of scope.
 - **Withdrawal under stress:** the Gateway pays withdrawals first-come-first-served when the reserve is short, so under-backing creates a run, which is exactly what the breaker and borrow check exist to contain.
 - **Rounding dust:** repayments round a wei or so between per-user debt and `totalBorrows`. Lender exits tolerate dust up to `totalSupplied / 1e12 + 1000` wei so the last lender can leave.
