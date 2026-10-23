@@ -62,7 +62,14 @@ async function main() {
   let step;
   if (role === "sentinel") {
     const { tick } = require("./src/sentinel");
+    // Optional LLM advisor (Groq). Needs GROQ_API_KEY; skip it with --no-ai. Rules run either way.
+    const { createAdvisor } = require("./src/advisor");
+    const advisor = process.argv.includes("--no-ai") ? null : createAdvisor({ log });
+    log(advisor ? `AI advisor on (${process.env.GROQ_MODEL || require("./src/advisor").DEFAULT_MODEL}), advisory only` : "AI advisor off, rules only");
     const ctx = {
+      advisor,
+      state: {},
+      market: "bPOT Core",
       monitor: new ethers.Contract(c.BackingMonitor, ABIS.monitor, wallet),
       breaker: new ethers.Contract(c.CircuitBreaker, ABIS.breaker, wallet),
       registry: new ethers.Contract(c.AgentRegistry, ABIS.registry, wallet),

@@ -476,3 +476,112 @@ describe("Agent bots (rule-based Sentinel and Keeper)", () => {
     expect(await keeperBot.tick(ctx)).to.deep.equal([]); // nothing left to do
   });
 });
+
+
+describe("Sentinel AI advisor (advisory only)", () => {
+  const sentinelBot = require("../../agents/src/sentinel");
+  const { createAdvisor, parseVerdict } = require("../../agents/src/advisor");
+
+  const mk = (sys, signer, advisor) => ({
+    monitor: sys.monitor,
+    breaker: sys.breaker.connect(signer),
+    registry: sys.registry,
+    address: signer.address,
+    thresholdBps: 9950,
+    now: async () => await time.latest(),
+    advisor,
+    state: {},
+    market: "test market",
+  });
+
+  // 100 real vs 0.1 forged: ratio 99.90%, still above the 99.5% threshold, so the rules alone would not act.
+  async function slip(f) {
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(0.1));
+  }
+
+  it("a confident advisor alarm on a slipping ratio triggers a soft trip, nothing more", async () => {
+    const f = await loadFixture(fixture);
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    const calls = [];
+    const advisor = async (snap) => { calls.push(snap.task); return { verdict: "alarm", confidence: 0.9, reason: "ratio falling fast" }; };
+    const ctx = mk(f.weak, f.sentinel, advisor);
+    expect(await sentinelBot.tick(ctx)).to.equal("ok"); // fully backed, advisor not consulted
+    expect(calls).to.deep.equal([]);
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(0.1));
+    expect(await sentinelBot.tick(ctx)).to.equal("tripped-early-warning");
+    expect(calls).to.deep.equal(["early"]);
+    expect(await f.weak.breaker.isPaused()).to.equal(true);
+    expect(await f.weak.breaker.confirmed()).to.equal(false); // soft pause only: confirm() would revert, backing is above threshold
+  });
+
+  it("an early-warning trip that proves wrong is slashed like any false alarm", async () => {
+    const f = await loadFixture(fixture);
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    const ctx = mk(f.weak, f.sentinel, async () => ({ verdict: "alarm", confidence: 0.95, reason: "looks bad" }));
+    await sentinelBot.tick(ctx);
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(0.1));
+    await sentinelBot.tick(ctx); // advisor-driven trip
+    await time.increase(3601);
+    expect(await sentinelBot.tick(ctx)).to.equal("settled");
+    expect((await f.weak.registry.agents(f.sentinel.address)).falseAlarms).to.equal(1);
+  });
+
+  it("low confidence, a 'watch' verdict, or an advisor failure leaves the rules in charge", async () => {
+    for (const advisor of [
+      async () => ({ verdict: "alarm", confidence: 0.5, reason: "unsure" }),
+      async () => ({ verdict: "watch", confidence: 0.99, reason: "keep an eye" }),
+      async () => null,
+    ]) {
+      const f = await loadFixture(fixture);
+      await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+      const ctx = mk(f.weak, f.sentinel, advisor);
+      await sentinelBot.tick(ctx);
+      await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(0.1));
+      const r = await sentinelBot.tick(ctx);
+      expect(["watch", "ok"]).to.include(r);
+      expect(await f.weak.breaker.isPaused()).to.equal(false);
+    }
+  });
+
+  it("the advisor cannot release a hard pause: backing alone decides", async () => {
+    const f = await loadFixture(fixture);
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(100));
+    const ctx = mk(f.weak, f.sentinel, async () => ({ verdict: "ignore", confidence: 1, reason: "all fine, unpause" }));
+    expect(await sentinelBot.tick(ctx)).to.equal("tripped+confirmed");
+    expect(await sentinelBot.tick(ctx)).to.equal("already-paused"); // 'ignore' changes nothing while under-backed
+    expect(await f.weak.breaker.confirmed()).to.equal(true);
+  });
+
+  it("on a rule-decided trip, the advisor only supplies the reason text", async () => {
+    const f = await loadFixture(fixture);
+    await f.weak.gateway.connect(f.alice).deposit({ value: E(100) });
+    await f.weak.gateway.connect(f.attacker).forgedMint(f.attacker.address, E(100));
+    const ctx = mk(f.weak, f.sentinel, async () => ({ verdict: "ignore", confidence: 0.1, reason: "advisor-written summary" }));
+    expect(await sentinelBot.tick(ctx)).to.equal("tripped+confirmed"); // trips even though the advisor said ignore
+    const logs = await f.weak.breaker.queryFilter(f.weak.breaker.filters.Tripped());
+    expect(logs[0].args.reason).to.contain("advisor-written summary");
+    expect(logs[0].args.reason).to.contain("5000 bps");
+  });
+
+  it("advisor.js: parses good replies, rejects bad ones, and never throws", async () => {
+    expect(parseVerdict('{"verdict":"alarm","confidence":0.9,"reason":"x"}')).to.deep.equal({ verdict: "alarm", confidence: 0.9, reason: "x" });
+    expect(parseVerdict('```json\n{"verdict":"watch","confidence":0.4,"reason":"y"}\n```').verdict).to.equal("watch");
+    expect(parseVerdict('{"verdict":"unpause","confidence":1,"reason":"z"}')).to.equal(null); // not an allowed verdict
+    expect(parseVerdict('{"verdict":"alarm","confidence":7,"reason":"z"}')).to.equal(null);
+    expect(parseVerdict("not json")).to.equal(null);
+    expect(createAdvisor({ apiKey: "" })).to.equal(null); // no key: advisor disabled
+
+    const ok = (body) => async () => ({ ok: true, json: async () => body });
+    const reply = (c) => ({ choices: [{ message: { content: c } }] });
+    const snap = { thresholdBps: 9950, ratioBps: 9990, history: [] };
+    const good = createAdvisor({ apiKey: "k", fetch: ok(reply('{"verdict":"alarm","confidence":0.9,"reason":"r"}')) });
+    expect((await good(snap)).verdict).to.equal("alarm");
+    expect(await createAdvisor({ apiKey: "k", fetch: ok(reply("garbage")) })(snap)).to.equal(null);
+    expect(await createAdvisor({ apiKey: "k", fetch: async () => ({ ok: false, status: 429 }) })(snap)).to.equal(null);
+    expect(await createAdvisor({ apiKey: "k", fetch: async () => { throw new Error("network down"); } })(snap)).to.equal(null);
+    const hang = (url, o) => new Promise((_, rej) => o.signal.addEventListener("abort", () => rej(Object.assign(new Error("a"), { name: "AbortError" }))));
+    expect(await createAdvisor({ apiKey: "k", fetch: hang, timeoutMs: 20 })(snap)).to.equal(null);
+  });
+});
