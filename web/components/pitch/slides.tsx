@@ -145,8 +145,19 @@ function Solution() {
       </Title>
       <Sub className="text-fg-2">If mint and borrow happen in one transaction, only an on-chain check at borrow time can stop it.</Sub>
 
-      <div className="mt-10 grid gap-4 lg:grid-cols-2">
-        <Card delay={400} className="!bg-bg-4 !shadow-none">
+      <div className="s-rise mt-8 flex items-start gap-4 rounded-2xl border border-primary/15 bg-white/70 px-6 py-5 backdrop-blur-sm" style={d(320)}>
+        <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
+          <LogoMark size={19} />
+        </span>
+        <p className="text-[15px] leading-[1.55] text-fg-2">
+          <span className="font-semibold text-fg-1">DotProof</span> is an isolated-market lending protocol on Portaldot. Lock POT to mint{" "}
+          <span className="font-mono text-[14px] text-fg-1">bPOT</span>, borrow against it — and the market proves the collateral is still backed before
+          it lends.
+        </p>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Card delay={460} className="!bg-bg-4 !shadow-none">
           <div className="mb-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-3">Today</div>
           <pre className="overflow-x-auto font-mono text-[13px] leading-[1.7] text-fg-2">
             <code>
@@ -161,7 +172,7 @@ function Solution() {
           </pre>
         </Card>
 
-        <Card delay={520} className="relative overflow-hidden ring-1 ring-primary/25">
+        <Card delay={580} className="relative overflow-hidden ring-1 ring-primary/25">
           <div className="mb-4 text-[12px] font-semibold uppercase tracking-[0.12em] text-primary-strong">DotProof</div>
           <pre className="overflow-x-auto font-mono text-[13px] leading-[1.7] text-fg-2">
             <code>
@@ -184,7 +195,7 @@ function Solution() {
           ["Isolation", "One market pauses, not the pool"],
           ["Backstop", "Pre-funded, absorbs the first loss"],
         ].map(([h, p], i) => (
-          <Card key={h} delay={700 + i * 100} className="!p-5">
+          <Card key={h} delay={760 + i * 100} className="!p-5">
             <div className="text-[15px] font-medium tracking-[-0.01em]">{h}</div>
             <div className="mt-1.5 text-[13px] leading-[1.4] text-fg-3">{p}</div>
           </Card>
