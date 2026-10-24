@@ -334,17 +334,17 @@ function Status() {
       <Title className="mx-auto">Deployed, tested, verifiable</Title>
 
       <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-x-8 gap-y-10 sm:grid-cols-4">
-        <Stat delay={380} value={<Count to={3} />} label="Contracts live on Portaldot V3" />
+        <Stat delay={380} value={<Count to={7} />} label="Contracts live on Portaldot V3" />
         <Stat delay={470} value={<Count to={38} />} label="Tests passing" />
-        <Stat delay={560} value={<Count to={100} decimals={2} suffix="%" />} label="Backing ratio on-chain" />
+        <Stat delay={560} value={<Count to={6} />} label="Real borrow-flow txs on testnet" />
         <Stat delay={650} value={<Count to={909} />} label="bps — where the attack reverted" tone="danger" />
       </div>
 
       <div className="s-rise mx-auto mt-12 max-w-2xl rounded-2xl bg-bg-4 px-6 py-5 text-left" style={d(800)}>
         <div className="mb-3 text-[12px] font-semibold uppercase tracking-[0.12em] text-fg-3">Next</div>
         <div className="grid gap-2 text-[14px] text-fg-2 sm:grid-cols-3">
-          <div>Deploy the market and breaker</div>
-          <div>Run the agents on testnet</div>
+          <div>Run the agents on the live contracts</div>
+          <div>Wire borrow and repay into the app</div>
           <div>Open the monitor to any token</div>
         </div>
       </div>

@@ -349,8 +349,6 @@ There is no admin key on `CircuitBreaker`: it has no owner. Rewards are pull-bas
 - **Live check:** `node agents/scripts/groq-smoke.js` sends three scenarios to Groq and prints the verdicts (healthy → `ignore`, slipping above threshold → `watch`, below threshold → `alarm` with a written reason).
 - **Honest note:** a plain script can read real chain data and apply thresholds just as well. The model adds explanation and a cautious second opinion, not safety. The safety comes from the contracts.
 
-**Honest note:** a plain script can read real chain data and apply thresholds just as well. The value of the "agent" framing is accountability and autonomy (own identity, wallet, bond, limits, earnings), not that an LLM is required.
-
 ---
 
 ## Why Portaldot
@@ -366,7 +364,7 @@ Measured against the live chain while building:
 | Finding | Value | Consequence |
 |---|---|---|
 | EVM implementation | `pallet-revive`, `allowEVMBytecode = true`, RPC identifies as `eth-rpc` | Plain `solc` bytecode deploys directly. No `resolc` needed |
-| Code storage deposit | `depositPerByte = 6e12` ≈ **0.06 tPOT per byte** of contract code, plus a fixed per-contract deposit | Bytecode size is a real cost. A dry-run quote for the full 7-contract set is roughly 1,000 tPOT |
+| Code storage deposit | `depositPerByte = 6e12` ≈ **0.06 tPOT per byte** of contract code, plus a fixed per-contract deposit | Bytecode size is a real cost: 20 KB across 7 contracts cost **1,766 tPOT** to deploy. `eth_estimateGas` includes the deposit, so dry-run before you spend |
 | PolkaVM (`resolc`) build size | ~7× larger than EVM bytecode (`LendingMarket` 72 KB vs ~8 KB) | We deploy EVM bytecode |
 | Decimals | `nativeToEthRatio = 10000`: 14 native decimals appear as 18 on the EVM side | Contracts assume 1e18 per tPOT |
 | Account mapping | `autoMap = true`. An EVM `0x` address maps to the SS58 address `<20 bytes><12 × 0xEE>` | EVM wallets can be funded from a native account |
@@ -379,31 +377,59 @@ These findings shaped the code: bPOT is a minimal hand-written ERC-20, and the R
 
 Network `PortaldotV3 Test` · EVM chain ID `420420777` · RPC `https://test-evm-rpc-v3.portaldot.dev` · node console `https://node-console.portaldot.dev/`
 
-> Check-in slice deployed. Deployer: `0xba8212D81868EB497FF67263761B774EFC413179`. Addresses and hashes are also in [`contracts/deployments/portaldot.json`](contracts/deployments/portaldot.json).
+> **The whole protocol is deployed.** Deployer: `0xba8212D81868EB497FF67263761B774EFC413179`. Addresses and hashes are also in [`contracts/deployments/portaldot.json`](contracts/deployments/portaldot.json).
 
 ### Deployed Contracts
 
-| Contract | Address | Code on-chain |
-|---|---|---|
-| Gateway (also the reserve) | `0x619cA0F74Bbe92CaE32CA72920CbA0ff0E5aF370` | 1,055 bytes |
-| bPOT | `0xF8191413d53B750cE2F0BFc44722c0EBF0bF95A1` | 1,884 bytes |
-| BackingMonitor | `0x60A22c14e7c3353d5B26843c8eA1cFF5D12Ef589` | 828 bytes |
+| Contract | Address | Code on-chain | Deploy tx |
+|---|---|---|---|
+| Gateway (also the reserve) | `0x619cA0F74Bbe92CaE32CA72920CbA0ff0E5aF370` | 1,055 B | `0x2b6ea71c…5ed06651` |
+| bPOT | `0xF8191413d53B750cE2F0BFc44722c0EBF0bF95A1` | 1,884 B | created by the Gateway |
+| BackingMonitor | `0x60A22c14e7c3353d5B26843c8eA1cFF5D12Ef589` | 828 B | `0x3eca7066…c804278` |
+| Backstop | `0xB57969CE443DBDF2F41e67408A77e5311b548187` | 1,104 B | `0xe3338d89…3e97bbf0` |
+| AgentRegistry | `0x95ccEd224908A20D7B4A7d684CbC9ACd4b0E2177` | 4,703 B | `0xb99bc324…ecdb1cec` |
+| CircuitBreaker | `0xfa5DC13B034A66a206e06CCd5e6F9e0Aaee9cBE4` | 2,629 B | `0xca0dfa89…4b63a11b` |
+| LendingMarket | `0x7e3444c1f9dbD53dEA5ebc8160522b154857566b` | 7,993 B | `0x363dab83…010e5d55e` |
 
-### Transactions
+Full hashes are in [`contracts/deployments/portaldot.json`](contracts/deployments/portaldot.json). Phase 1 (Gateway, bPOT, BackingMonitor) landed in blocks 162329–162331; phase 2 in blocks 171630–171634. Total deployment cost: **1,766 tPOT**, almost all of it storage deposit for contract code.
 
-| Transaction | Hash | Block |
-|---|---|---|
-| Deploy Gateway (creates bPOT) | `0x2b6ea71cc1f2e36e5bd01ab240149b425af2f13fe0381105102b5f345ed06651` | 162329 |
-| Deploy BackingMonitor | `0x3eca706625c37f8308782f41c9b71d08256b1ab2e312e2e0163410854c804278` | 162330 |
-| Demo deposit (1 tPOT → 1 bPOT) | `0x8c0fd8f59613050537c223e881833c248735707e7af983d8bcfd23f53d978040` | 162331 |
+### Verified On-Chain After Deployment
 
-After the demo deposit, `BackingMonitor.ratioBps()` returns `10000` (100% backed) and the Gateway holds 1 tPOT of backing for 1 bPOT of supply.
+Read straight from the chain, not from the deploy script's output:
+
+| Check | Result |
+|---|---|
+| `AgentRegistry.isAuthority(CircuitBreaker)` | `true` — only the breaker can reward or slash |
+| `Backstop.isMarket(LendingMarket)` | `true` |
+| `CircuitBreaker.monitor()` / `.registry()` | match the deployed addresses |
+| `LendingMarket.collateral()` / `.monitor()` | bPOT and BackingMonitor |
+| `CircuitBreaker.isPaused()` | `false` |
+| `LendingMarket.liqThresholdBps()` | `8000` (tightens to `6000` when paused) |
+| `BackingMonitor.ratioBps()` | `10000` — 100% backed |
+| `LendingMarket.valueOf(1 bPOT)` | `1 tPOT` |
+| `AgentRegistry.minBond(Sentinel)` | `10 tPOT`, slash `2000` bps, reward `1 tPOT`, unbond `604800` s |
 
 To verify any hash without an explorer, call `eth_getTransactionReceipt` against the RPC above (status `0x1` means success).
 
-### Not Yet Deployed
+### Live Borrow Flow on the Testnet
 
-`LendingMarket`, `CircuitBreaker`, `Backstop`, `AgentRegistry` and the `WeakGateway` fixture are written and tested but not on the testnet. A dry-run of `scripts/deploy-phase2.js` against the live chain estimates about **1,435 tPOT** for Backstop (~105), AgentRegistry (~402), CircuitBreaker (~222) and LendingMarket (~706), before agent bonds and test liquidity. The check-in wallet holds about 104 tPOT, so phase 2 is waiting on additional testnet tokens.
+A real supply → mint → collateral → borrow → repay run against the deployed contracts (`contracts/scripts/live-flow.js`), with every transaction confirmed `status=0x1`:
+
+| Step | What happened | Tx | Block |
+|---|---|---|---|
+| 1. Supply | 20 tPOT of lender liquidity into `LendingMarket` | `0x23f7695e…0815b573` | 171671 |
+| 2. Mint | 10 tPOT locked in the Gateway, 10 bPOT minted 1:1 | `0x595a96c6…d618871` | 171672 |
+| 3. Approve | bPOT allowance to the market | `0x95bb3919…aa1498dc6` | 171673 |
+| 4. Deposit collateral | 10 bPOT posted | `0x94d88104…dc4ae986` | 171674 |
+| — Seasoning check | `borrow` simulated right after: **reverted `ExceedsBorrowLimit()`**, because the collateral was still seasoning | (simulated call) | 171674 |
+| 5. Borrow | 5 tPOT, **backing checked at 100% inside the transaction**, after 120 blocks of seasoning | `0x831f9623…18f3c594` | 171795 |
+| 6. Repay | Debt cleared to 0 | `0xbef95740…b4ea6d` | 171798 |
+
+Full hashes are in `contracts/deployments/portaldot.json` under `liveFlow`. The whole run spent about 68.5 tPOT, mostly storage deposits for the new account entries. Afterwards, read from the chain: debt `0`, collateral `10 bPOT` (all seasoned), and the lenders' supply had grown from `20` to `20.0000001` tPOT from the interest the borrow accrued.
+
+Run it yourself (read-only dry run needs no key): `DRY_RUN=1 npx hardhat run scripts/live-flow.js --network portaldot`.
+
+> **ethers quirk worth knowing:** `LendingMarket.valueOf(...)` collides with JavaScript's built-in `Object.prototype.valueOf`, so an ethers `Contract` proxy returns the built-in instead of the contract method. Use `contract.getFunction("valueOf")(...)` or a raw `eth_call`. viem addresses functions by name and is unaffected.
 
 ---
 
@@ -411,13 +437,13 @@ To verify any hash without an explorer, call `eth_getTransactionReceipt` against
 
 | Item | State |
 |---|---|
-| Gateway, bPOT, BackingMonitor on testnet with real tx hashes | ✅ Done |
-| LendingMarket, CircuitBreaker, Backstop, exploit fixture | ✅ Written, 38 passing tests · ⏳ not yet deployed |
-| Frontend: live backing ratio, reserve, supply and block on the landing page and `/app`; wallet connect, **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
-| Frontend: markets list, market detail (except the bPOT gauge), agents page, borrow and repay | ⚠️ Placeholder data, because `LendingMarket` and the agents are not deployed yet |
+| All 7 contracts deployed on the Portaldot V3 testnet, wiring verified on-chain | ✅ Done |
+| Gateway, bPOT, BackingMonitor, LendingMarket, CircuitBreaker, Backstop, AgentRegistry | ✅ 38 passing tests · ✅ live |
+| Exploit reproduction fixture (`WeakGateway`) | ✅ Written and tested · ⏳ not deployed (a correct Gateway can't go unbacked, so the reproduction runs locally) |
+| Frontend: live backing ratio, reserve, supply and block; wallet connect; **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
+| Frontend: borrow/repay UI, markets list, agents page | ⏳ Contracts are live; the UI still reads placeholder data and needs wiring |
+| Sentinel and Keeper bots | ✅ Written, 5 tests against the contracts · ⏳ not yet run against the live contracts |
 | MarketFactory | ⏳ Not started |
-| AgentRegistry (bonds, rewards, slashing) and the bonded-alarm logic in CircuitBreaker | ✅ Written, 9 tests · ⏳ not yet deployed |
-| Sentinel and Keeper bots | ✅ Written, 5 tests against the contracts · ⏳ will run on the testnet once phase 2 is deployed |
 
 ---
 
@@ -439,6 +465,7 @@ DotProof/
 │   ├── scripts/
 │   │   ├── deploy-slice.js              # Check-in slice deploy (dry-run mode included)
 │   │   ├── deploy-phase2.js             # Rest of the protocol + wiring (dry-run mode included)
+│   │   ├── live-flow.js                 # Real supply/mint/collateral/borrow/repay on the testnet
 │   │   ├── demo-slice.js                # Live backing-state demo against the testnet
 │   │   └── demo-e2e.js                  # Full attack-and-response story on a local chain
 │   └── deployments/portaldot.json       # Live addresses and tx hashes
