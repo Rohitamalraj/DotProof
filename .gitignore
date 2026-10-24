@@ -16,3 +16,6 @@ Screen Recording*.mp4
 # Kept local, not published
 DotProof-PRD.md
 web/.next-check/
+
+# Video project, renders and recordings stay local
+videos/
