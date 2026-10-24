@@ -39,5 +39,11 @@
     "borrow": "0x831f962363e577c9a12cb4d5df4613bc94d62b5f94fc14668f60be5a18f3c594",
     "repay": "0xbef95740ea138220cd5210aaee9bad1c93c8671d6f1becaeca6182ba0cb4ea6d",
     "completedAt": "2026-10-24T07:46:20.880Z"
+  },
+  "agents": {
+    "sentinel": "0xeEc862Eb96c212a8F788121Ca36176070382F2e4",
+    "sentinelRegisterTx": "0x9d950273e80421c97d3d640fc96068df934203a5359807b6f6a4eb1d7d2c4651",
+    "keeper": "0x5D46053e2EA5d66D1f315895BE3a0B685E6e5bA9",
+    "keeperRegisterTx": "0xca7abf247df7cdd90f7bf57df71be6d06446a791d83164a9258f8e5c848e590c"
   }
 }

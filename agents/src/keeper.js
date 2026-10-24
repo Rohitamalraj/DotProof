@@ -42,6 +42,9 @@ async function tick(ctx) {
     log(`liquidated ${user}: repaid ~${debt} (health factor was ${hf})`);
     liquidated.push(user);
   }
+  if (liquidated.length === 0) {
+    log(`scanned ${state.users.size} known borrower(s) up to block ${head}: nothing to liquidate`);
+  }
   return liquidated;
 }
 

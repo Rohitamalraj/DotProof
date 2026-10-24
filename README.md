@@ -312,7 +312,14 @@ Each agent has its own wallet (pays its own gas), a registered identity, role-li
 | **Keeper** | Liquidates unhealthy loans (permissionless, anyone can run one) | Liquidation bonus | It acts outside its limits | Liquidate | Anything else |
 | **Guardian** *(stretch)* | Protects a user's position within their allowance | Small fee | It overspends | Spend up to the user's allowance | Exceed it or touch other accounts |
 
-**Status:** `AgentRegistry`, the bonded-alarm logic in `CircuitBreaker`, and rule-based Sentinel and Keeper bots are written and covered by tests. They run against the local test chain today. They are **not yet deployed to the testnet**, because the code deposits need more tPOT than we hold (see below). `agents/run.js` refuses to start against the testnet until those contracts exist, and says so.
+**Status:** `AgentRegistry`, the bonded-alarm logic in `CircuitBreaker`, and the rule-based Sentinel and Keeper bots are written, covered by tests, and **running against the live testnet contracts**. Two dedicated agent wallets are registered in the live `AgentRegistry` with their bonds (set up by `agents/setup-live.js`, which generates throwaway testnet-only keys into the git-ignored `.env` and never prints them):
+
+| Agent | Address | Bond | Register tx |
+|---|---|---|---|
+| Sentinel | `0xeEc862Eb96c212a8F788121Ca36176070382F2e4` | 10 tPOT | `0x9d950273…2d4c4651` |
+| Keeper | `0x5D46053e2EA5d66D1f315895BE3a0B685E6e5bA9` | 5 tPOT | `0xca7abf24…e590c` |
+
+Live runs so far: `node agents/run.js sentinel --once` reads the real `BackingMonitor` (10000 bps), the advisor is on, and it correctly does nothing while backing is full. `node agents/run.js keeper --once` found the real borrower from the on-chain `Borrowed` events and correctly left the healthy position alone. The attack path (trip, confirm, reward) is demonstrated locally in `scripts/demo-e2e.js` because a correct Gateway can never go unbacked on-chain, which is why the exploit fixture exists.
 
 **How bonds, rewards and slashing work (all deterministic, no human in the loop)**
 
@@ -442,7 +449,7 @@ Run it yourself (read-only dry run needs no key): `DRY_RUN=1 npx hardhat run scr
 | Exploit reproduction fixture (`WeakGateway`) | ✅ Written and tested · ⏳ not deployed (a correct Gateway can't go unbacked, so the reproduction runs locally) |
 | Frontend: live backing ratio, reserve, supply and block; wallet connect; **mint and redeem through the deployed Gateway** | ✅ Wired to the testnet contracts (viem) |
 | Frontend: borrow/repay UI, markets list, agents page | ⏳ Contracts are live; the UI still reads placeholder data and needs wiring |
-| Sentinel and Keeper bots | ✅ Written, 5 tests against the contracts · ⏳ not yet run against the live contracts |
+| Sentinel and Keeper bots | ✅ Written, tested, registered with bonds, and **run against the live contracts** |
 | MarketFactory | ⏳ Not started |
 
 ---
@@ -473,7 +480,8 @@ DotProof/
 ├── agents/                     # Rule-based Sentinel and Keeper bots
 │   ├── src/sentinel.js          # trip, confirm, settle, release
 │   ├── src/keeper.js            # find borrowers, liquidate unhealthy positions
-│   └── run.js                   # CLI runner for the testnet
+│   ├── run.js                   # CLI runner for the testnet
+│   └── setup-live.js            # One-time: fund and register the agent wallets
 │
 └── web/                        # Next.js frontend
     ├── app/                     # /, /markets, /markets/[id], /agents, /app
@@ -582,7 +590,7 @@ npx hardhat run scripts/deploy-slice.js --network portaldot             # real d
 ## Honest Trust Model and Risks
 
 - Where the backing lives on this chain (the Gateway's own balance), the check is **trustless and fully on-chain**.
-- For assets whose reserves live on another chain, the design relies on **Sentinel attestation**, which is a trust assumption, not a trustless proof. It is bonded and limited by `AgentRegistry` (written and tested, not yet deployed), but reading another chain's reserves is not built: the Sentinel today only reads the on-chain `BackingMonitor`.
+- For assets whose reserves live on another chain, the design relies on **Sentinel attestation**, which is a trust assumption, not a trustless proof. It is bonded and limited by the live `AgentRegistry`, but reading another chain's reserves is not built: the Sentinel today only reads the on-chain `BackingMonitor`.
 - **Unaudited prototype.** No liquidity, no audits, no battle-testing, and price-oracle coverage is intentionally out of scope.
 - **Withdrawal under stress:** the Gateway pays withdrawals first-come-first-served when the reserve is short, so under-backing creates a run, which is exactly what the breaker and borrow check exist to contain.
 - **Rounding dust:** repayments round a wei or so between per-user debt and `totalBorrows`. Lender exits tolerate dust up to `totalSupplied / 1e12 + 1000` wei so the last lender can leave.
