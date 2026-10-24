@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="web/public/logo-mark.svg" alt="DotProof logo: a D holding a dot" width="96" />
+</p>
+
 # DotProof — The First Backing-Aware Lending on Portaldot
 
 > **The first lending protocol on Portaldot where every borrow is checked, on-chain and inside the same transaction, against proof that the collateral is actually backed — and where a bonded agent network can only ever make the system safer.**

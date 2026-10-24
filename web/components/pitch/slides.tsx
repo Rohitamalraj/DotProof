@@ -15,7 +15,7 @@ function Cover() {
   return (
     <div className="text-center">
       <div className="s-pop mx-auto mb-7 grid h-16 w-16 place-items-center rounded-2xl bg-primary text-white shadow-[0_18px_50px_-18px_rgba(151,136,255,.9)]" style={d(80)}>
-        <LogoMark size={34} />
+        <LogoMark size={36} mono />
       </div>
       <h1 className="s-rise text-[clamp(2.6rem,7vw,5.2rem)] font-[550] leading-[1.02] tracking-[-0.055em]" style={d(220)}>
         DotProof
@@ -147,7 +147,7 @@ function Solution() {
 
       <div className="s-rise mt-8 flex items-start gap-4 rounded-2xl border border-primary/15 bg-white/70 px-6 py-5 backdrop-blur-sm" style={d(320)}>
         <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary text-white">
-          <LogoMark size={19} />
+          <LogoMark size={20} mono />
         </span>
         <p className="text-[15px] leading-[1.55] text-fg-2">
           <span className="font-semibold text-fg-1">DotProof</span> is an isolated-market lending protocol on Portaldot. Lock POT to mint{" "}

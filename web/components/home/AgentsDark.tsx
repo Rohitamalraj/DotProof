@@ -15,7 +15,7 @@ export function AgentsDark() {
         <Reveal>
           <div className="mb-4 inline-flex items-center gap-2 text-white/80">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/10">
-              <LogoMark size={16} />
+              <LogoMark size={18} mono />
             </span>
             <span className="text-[17px] font-medium">DotProof Agents</span>
           </div>

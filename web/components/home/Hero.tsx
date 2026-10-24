@@ -28,7 +28,7 @@ export function Hero() {
       <div className="wrap text-center">
         <div className="load-rise mb-5 inline-flex items-center gap-2 text-fg-2" style={{ "--d": "250ms" } as React.CSSProperties}>
           <span className="grid h-7 w-7 place-items-center rounded-lg bg-primary text-white">
-            <LogoMark size={16} />
+            <LogoMark size={18} mono />
           </span>
           <span className="text-[17px] font-medium tracking-tight">DotProof Markets</span>
         </div>

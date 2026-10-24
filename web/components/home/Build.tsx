@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Reveal } from "../Reveal";
-import { LogoMark } from "../Logo";
+import { MARK_PATH } from "../Logo";
 
 function Cube({ layers, className = "", shade = 0 }: { layers: number; className?: string; shade?: number }) {
   const tops = ["#8b7df5", "#7a67ee", "#6a55e0"];
@@ -23,7 +23,7 @@ function Cube({ layers, className = "", shade = 0 }: { layers: number; className
           <g>
             <path d={`M90 ${y - 42} L170 ${y} L90 ${y + 42} L10 ${y} Z`} fill={tops[shade]} />
             <path d={`M90 ${y - 42} L170 ${y} L90 ${y + 42} L10 ${y} Z`} fill="url(#sheen)" />
-            <g transform={`translate(54 ${y - 12}) scale(1.2)`} color="#fff">
+            <g transform={`translate(69 ${y - 21}) scale(0.44)`}>
               <LogoMarkInline />
             </g>
           </g>
@@ -40,11 +40,11 @@ function Cube({ layers, className = "", shade = 0 }: { layers: number; className
 }
 
 function LogoMarkInline() {
+  // The DotProof "D" with its dot, in white to sit on the cube's lavender top face.
   return (
-    <g fill="none" stroke="#fff" strokeLinecap="round">
-      <path d="M2 20C2 9 9 2 18 2s16 7 16 18" strokeWidth="5" />
-      <circle cx="18" cy="14" r="3" fill="#fff" stroke="none" />
-      <circle cx="27" cy="14" r="3" fill="#fff" stroke="none" />
+    <g fill="#fff">
+      <path d={MARK_PATH} fillRule="evenodd" />
+      <circle cx="50" cy="48" r="8" />
     </g>
   );
 }
