@@ -356,6 +356,84 @@ function Status() {
   );
 }
 
+/* ───────────────────────── 8b. Why Portaldot ───────────────────────── */
+const why = [
+  { h: "EVM on pallet-revive", p: "Plain Solidity deploys as it is. Existing tools and audits carry over." },
+  { h: "Built for RWA and security", p: "Tokenized assets need a proof of backing. That is our primitive." },
+  { h: "A primitive for the ecosystem", p: "BackingMonitor works for any token backed by a native reserve." },
+  { h: "Real on-chain activity", p: "Every mint, borrow and agent action is a transaction." },
+];
+
+function WhyPortaldot() {
+  return (
+    <div>
+      <Eyebrow tone="dark">Why Portaldot</Eyebrow>
+      <Title className="text-white">Where this belongs</Title>
+      <Sub className="text-white/60">Not ported from elsewhere. Measured and built on V3.</Sub>
+
+      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+        {why.map((w, i) => (
+          <Card key={w.h} tone="dark" delay={420 + i * 120}>
+            <div className="text-[20px] font-medium tracking-[-0.02em] text-white">{w.h}</div>
+            <div className="mt-2 text-[15px] leading-[1.45] text-white/60">{w.p}</div>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-10 grid grid-cols-3 gap-6">
+        <Stat tone="dark" delay={950} value={<Count to={7} />} label="Contracts live on V3" />
+        <Stat tone="dark" delay={1050} value={<Count to={6} />} label="Real borrow-flow transactions" />
+        <Stat tone="dark" delay={1150} value={<Count prefix="" to={1766} />} label="tPOT of code deposits, spent on-chain" />
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────────────── 10. What's next and the ask ───────────────────────── */
+const road = [
+  ["Now", "Borrow and repay in the app, all pages on live contracts"],
+  ["Next", "More markets: tokenized and bridged assets, one isolated market each"],
+  ["Then", "Cross-chain backing through bonded Sentinel attestation"],
+  ["Mainnet", "Security review, then migration"],
+];
+
+function Next() {
+  return (
+    <div>
+      <Eyebrow>What&rsquo;s next</Eyebrow>
+      <Title>Why keep backing this</Title>
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_1fr]">
+        <ol className="space-y-2.5">
+          {road.map(([k, v], i) => (
+            <li
+              key={k}
+              className="s-rise flex items-start gap-4 rounded-2xl border border-line-1 bg-white px-5 py-4"
+              style={d(380 + i * 120)}
+            >
+              <span className="mt-0.5 w-[74px] shrink-0 font-mono text-[12px] font-semibold uppercase tracking-[0.12em] text-primary-strong">{k}</span>
+              <span className="text-[15px] leading-[1.4] text-fg-1">{v}</span>
+            </li>
+          ))}
+        </ol>
+
+        <Card delay={900} className="!bg-fg-1 !border-fg-1">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#b8b2fa]">The ask</div>
+          <ul className="mt-4 space-y-3 text-[15px] leading-[1.4] text-white/85">
+            <li>Mainnet migration support</li>
+            <li>Help with contract storage deposits. Our full protocol cost 1,766 tPOT.</li>
+            <li>Technical and security review</li>
+          </ul>
+        </Card>
+      </div>
+
+      <p className="s-rise mt-8 text-[13px] text-fg-4" style={d(1200)}>
+        An unaudited prototype today. Cross-chain backing relies on bonded attestation, a trust assumption we document.
+      </p>
+    </div>
+  );
+}
+
 export const slides: SlideDef[] = [
   { id: "cover", label: "DotProof", theme: "plain", render: () => <Cover /> },
   { id: "market", label: "Market", theme: "light", render: () => <Market /> },
@@ -364,5 +442,7 @@ export const slides: SlideDef[] = [
   { id: "solution", label: "Solution", theme: "light", render: () => <Solution /> },
   { id: "how", label: "How it works", theme: "dark", render: () => <How /> },
   { id: "why", label: "Why better", theme: "plain", render: () => <Why /> },
+  { id: "portaldot", label: "Why Portaldot", theme: "dark", render: () => <WhyPortaldot /> },
   { id: "status", label: "Status", theme: "light", render: () => <Status /> },
+  { id: "next", label: "What's next", theme: "plain", render: () => <Next /> },
 ];
