@@ -154,3 +154,54 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .s-rise, .s-pop, .s-grow, .deck-aura::before { animation: none !important; opacity: 1; transform: none; filter: none; }
 }
+
+/* ═══════════════ Hero card cluster and event belt (light theme, same palette) ═══════════════ */
+.hv-card { background: #fff; border: 1px solid var(--color-line-1); border-radius: 26px; box-shadow: 0 34px 70px -36px rgba(76, 31, 94, .5), 0 2px 8px rgba(33, 29, 29, .05); }
+@keyframes hv-float { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(-12px) rotate(var(--r, 0deg)); } }
+.hv-float { animation: hv-float 6.5s ease-in-out infinite; animation-delay: var(--d, 0s); }
+.hv-live { width: 9px; height: 9px; border-radius: 50%; background: #28d358; animation: hv-pulse 1.8s ease-out infinite; }
+@keyframes hv-pulse { 0% { box-shadow: 0 0 0 0 rgba(40, 211, 88, .55); } 100% { box-shadow: 0 0 0 11px rgba(40, 211, 88, 0); } }
+
+/* ring */
+.hv-ring { transform: rotate(-90deg); }
+.hv-ring .arc { transition: stroke-dashoffset 1.6s cubic-bezier(.2, .8, .2, 1); }
+@keyframes hv-sweep { to { transform: rotate(360deg); } }
+.hv-sweep { transform-origin: 50% 50%; animation: hv-sweep 6s linear infinite; }
+
+/* the borrow-request card loops between a passing and a failing check */
+.hv-sc1 { animation: hv-sc1 12s infinite; } .hv-sc2 { animation: hv-sc2 12s infinite; }
+@keyframes hv-sc1 { 0%, 45% { opacity: 1; } 50%, 95% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes hv-sc2 { 0%, 45% { opacity: 0; } 50%, 95% { opacity: 1; } 100% { opacity: 0; } }
+.hv-bar { height: 12px; border-radius: 6px; background: var(--color-bg-4); overflow: hidden; }
+.hv-bar i { display: block; height: 100%; border-radius: 6px; transform-origin: left center; transform: scaleX(0); }
+.hv-sc1 .hv-bar i { background: #9788ff; animation: hv-fill1 12s cubic-bezier(.2, .8, .2, 1) infinite; }
+.hv-sc2 .hv-bar i { background: #211d1d; animation: hv-fill2 12s cubic-bezier(.2, .8, .2, 1) infinite; }
+@keyframes hv-fill1 { 0% { transform: scaleX(0); } 14%, 100% { transform: scaleX(1); } }
+@keyframes hv-fill2 { 0%, 50% { transform: scaleX(0); } 64%, 100% { transform: scaleX(.09); } }
+.hv-stamp { position: absolute; right: 18px; top: 16px; padding: 3px 11px; border: 3px solid currentColor; border-radius: 8px; font-weight: 800; font-size: 14px; letter-spacing: .08em; opacity: 0; }
+.hv-card .hv-stamp { top: auto; bottom: 34px; right: 26px; font-size: 20px; padding: 4px 14px; border-width: 3.5px; }
+.hv-sc1 .hv-stamp { color: #7f6df0; animation: hv-st1 12s cubic-bezier(.2, .9, .2, 1.2) infinite; }
+.hv-sc2 .hv-stamp { color: #211d1d; animation: hv-st2 12s cubic-bezier(.2, .9, .2, 1.2) infinite; }
+@keyframes hv-st1 { 0%, 17% { opacity: 0; transform: rotate(-8deg) scale(2.3); } 23%, 100% { opacity: 1; transform: rotate(-8deg) scale(1); } }
+@keyframes hv-st2 { 0%, 66% { opacity: 0; transform: rotate(-8deg) scale(2.3); } 72%, 100% { opacity: 1; transform: rotate(-8deg) scale(1); } }
+
+/* vertical feed of real transactions */
+.hv-feed { height: 232px; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(180deg, transparent, #000 14%, #000 86%, transparent); }
+.hv-feed > div { animation: hv-vs 22s linear infinite; }
+@keyframes hv-vs { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+
+/* horizontal belts below the hero */
+.hv-belts { overflow: hidden; padding: 6px 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.hv-track { display: flex; gap: 14px; width: max-content; padding: 8px 0; animation: hv-slide-l 70s linear infinite; }
+.hv-track.rev { animation-name: hv-slide-r; animation-duration: 84s; }
+.hv-row:hover .hv-track { animation-play-state: paused; }
+@keyframes hv-slide-l { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes hv-slide-r { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+.hv-mini { position: relative; width: 300px; flex: none; padding: 16px 18px; border-radius: 18px; background: #fff; border: 1px solid var(--color-line-2); box-shadow: 0 14px 34px -22px rgba(76, 31, 94, .4); transition: transform .3s cubic-bezier(.2, .8, .2, 1), border-color .25s; }
+.hv-mini:hover { transform: translateY(-5px); border-color: #9788ff; }
+.hv-mini .hv-stamp { right: 12px; top: 10px; font-size: 12px; padding: 2px 9px; border-width: 2.5px; animation: hv-st1 8s cubic-bezier(.2, .9, .2, 1.2) infinite; animation-delay: var(--sd, 0s); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hv-float, .hv-live, .hv-sweep, .hv-sc1, .hv-sc2, .hv-sc1 .hv-bar i, .hv-sc2 .hv-bar i, .hv-feed > div, .hv-track, .hv-mini .hv-stamp { animation: none !important; }
+  .hv-sc2 { display: none; } .hv-sc1 .hv-bar i { transform: scaleX(1); } .hv-sc1 .hv-stamp, .hv-mini .hv-stamp { opacity: 1; transform: rotate(-8deg); }
+}
