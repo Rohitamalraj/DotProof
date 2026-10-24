@@ -6,17 +6,38 @@
     "Gateway": "0x619cA0F74Bbe92CaE32CA72920CbA0ff0E5aF370",
     "BPOT": "0xF8191413d53B750cE2F0BFc44722c0EBF0bF95A1",
     "Reserve": "0x619cA0F74Bbe92CaE32CA72920CbA0ff0E5aF370",
-    "BackingMonitor": "0x60A22c14e7c3353d5B26843c8eA1cFF5D12Ef589"
+    "BackingMonitor": "0x60A22c14e7c3353d5B26843c8eA1cFF5D12Ef589",
+    "Backstop": "0xB57969CE443DBDF2F41e67408A77e5311b548187",
+    "AgentRegistry": "0x95ccEd224908A20D7B4A7d684CbC9ACd4b0E2177",
+    "CircuitBreaker": "0xfa5DC13B034A66a206e06CCd5e6F9e0Aaee9cBE4",
+    "LendingMarket": "0x7e3444c1f9dbD53dEA5ebc8160522b154857566b"
   },
   "txs": {
     "Gateway": "0x2b6ea71cc1f2e36e5bd01ab240149b425af2f13fe0381105102b5f345ed06651",
     "BackingMonitor": "0x3eca706625c37f8308782f41c9b71d08256b1ab2e312e2e0163410854c804278",
-    "demoDeposit": "0x8c0fd8f59613050537c223e881833c248735707e7af983d8bcfd23f53d978040"
+    "demoDeposit": "0x8c0fd8f59613050537c223e881833c248735707e7af983d8bcfd23f53d978040",
+    "Backstop": "0xe3338d89a68008245716686539a021addeaa4fd5b6f10135949cd16e3e97bbf0",
+    "AgentRegistry": "0xb99bc324576aa6ecb9804e00eb659cfbf0d896718a26e55bd490bcccecdb1cec",
+    "CircuitBreaker": "0xca0dfa89700deeff06bea1a221109211f608e62ede296b70c5f546734b63a11b",
+    "LendingMarket": "0x363dab8375a68fca95e104ef49074550af2f33c313d83f6bafa93e1010e5d55e"
   },
   "demo": {
     "bPOTBalance": "1.0",
     "reserve": "1.0",
     "supply": "1.0",
     "ratioBps": "10000"
+  },
+  "phase2": {
+    "deployedAt": "2026-10-24T07:30:01.211Z",
+    "wired": true
+  },
+  "liveFlow": {
+    "supply": "0x23f7695eb862ebb7798430ba19fcd35bebae9abd9e91c6ad473322700815b573",
+    "mint": "0x595a96c66d82c34db0c8062c5313788846878e20bea20dd37975e82ffd618871",
+    "approve": "0x95bb3919788a2b0cc7e4e8489785968e02ae21ce6bfb79050b87cd0aa1498dc6",
+    "depositCollateral": "0x94d881041dacb131f8a7ba1f55d4e60fc1d0865adc68ae0f91a7cdb7dc4ae986",
+    "borrow": "0x831f962363e577c9a12cb4d5df4613bc94d62b5f94fc14668f60be5a18f3c594",
+    "repay": "0xbef95740ea138220cd5210aaee9bad1c93c8671d6f1becaeca6182ba0cb4ea6d",
+    "completedAt": "2026-10-24T07:46:20.880Z"
   }
 }
